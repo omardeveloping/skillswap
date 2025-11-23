@@ -1,3 +1,6 @@
-from django.shortcuts import render
+from django.http import JsonResponse
 
-# Create your views here.
+
+def healthcheck(request):
+    """Simple root endpoint so Nginx checks and bare domain do not 404."""
+    return JsonResponse({"status": "ok"})

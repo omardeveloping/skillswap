@@ -26,7 +26,11 @@ SECRET_KEY = 'django-insecure-8+tskhkj%a7i!0etu$ry#6s!bg^-(2_$kl(bx2y9x&*ld!$2p&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["api.omarmontanares.com"]
+ALLOWED_HOSTS = [
+    "api.omarmontanares.com",
+    "127.0.0.1",
+    "localhost",
+]
 
 
 # Application definition
@@ -88,6 +92,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = []
 CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
+    "https://api.omarmontanares.com",
     "https://api.omarmontanares.com:8080",
 ]
 
