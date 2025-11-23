@@ -88,6 +88,9 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "https://api.omarmontanares.com:8080",
+]
 
 ROOT_URLCONF = 'skillswap.urls'
 
@@ -158,6 +161,7 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 # Email: para desarrollo evita conexión SMTP real
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
