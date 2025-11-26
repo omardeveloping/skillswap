@@ -34,6 +34,14 @@ class CustomRegisterSerializer(RegisterSerializer):
         })
         return data
 
+    def save(self, request):
+        user = super().save(request)
+        user.nombre = self.cleaned_data.get("nombre", "")
+        user.segundo_nombre = self.cleaned_data.get("segundo_nombre", "")
+        user.apellido = self.cleaned_data.get("apellido", "")
+        user.save()
+        return user
+
 class CustomLoginSerializer(LoginSerializer):
     # Fuerza login por email; oculta username en el schema/UI
     username = None
