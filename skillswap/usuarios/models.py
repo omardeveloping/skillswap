@@ -2,9 +2,17 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 
-# Create your models here.
-class Carrera(models.Model):
+
+class TipoHabilidad(models.Model):
     nombre = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.nombre
+
+
+class Habilidad(models.Model):
+    nombre_habilidad = models.CharField(max_length=100)
+    tipo = models.ForeignKey(TipoHabilidad, on_delete=models.SET_NULL, null=True, blank=True, related_name="habilidades")
 
     def __str__(self):
         return self.nombre
@@ -38,8 +46,8 @@ class Usuario(AbstractUser):
     nombre = models.CharField(max_length=100)
     segundo_nombre = models.CharField(max_length=100, blank=True, null=True)
     apellido = models.CharField(max_length=100)
-    carrera = models.ForeignKey(Carrera, on_delete=models.SET_NULL, blank=True, null=True)
     year = models.IntegerField(blank=True, null=True)
+    habilidades = models.ManyToManyField(Habilidad, related_name="usuarios", blank=True)
     email = models.EmailField(_("email address"), unique=True)
     media = models.ImageField(upload_to='media/', blank=True, null=True)
 

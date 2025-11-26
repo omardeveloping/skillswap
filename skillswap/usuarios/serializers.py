@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from .models import Usuario, Carrera
+from .models import Usuario, Habilidad, TipoHabilidad
 
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import UserDetailsSerializer
@@ -12,10 +12,20 @@ class UsuarioSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = "__all__"
 
-class CarreraSerializer(serializers.ModelSerializer):
+class HabilidadSerializer(serializers.ModelSerializer):
+    tipo = serializers.PrimaryKeyRelatedField(queryset=TipoHabilidad.objects.all())
+    nombre_tipo = serializers.CharField(source='tipo.nombre', read_only=True)
+
     class Meta:
-        model = Carrera
+        model = Habilidad
         fields = "__all__"
+
+
+class TipoHabilidadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoHabilidad
+        fields = "__all__"
+
 
 class CustomRegisterSerializer(RegisterSerializer):
     # Elimina el campo heredado "username" y usa email como identificador
@@ -68,9 +78,9 @@ class CustomUserDetailsSerializer(UserDetailsSerializer):
             "nombre",
             "segundo_nombre",
             "apellido",
-            "carrera",
             "year",
             "media",
+            "habilidades",
         )
         extra_kwargs = {
             "email": {"read_only": True},  # no permitir editar email desde user endpoint
