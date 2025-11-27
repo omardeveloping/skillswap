@@ -15,7 +15,7 @@ class Habilidad(models.Model):
     tipo = models.ForeignKey(TipoHabilidad, on_delete=models.SET_NULL, null=True, blank=True, related_name="habilidades")
 
     def __str__(self):
-        return self.nombre
+        return self.nombre_habilidad
 
 class UsuarioManager(BaseUserManager):
     use_in_migrations = True
@@ -37,6 +37,28 @@ class UsuarioManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         return self._create_user(email, password, **extra_fields)
+    
+class ValoracionUsuarioChoices(models.IntegerChoices):
+    MUY_MALO = 1, _("1")
+    MALO = 2, _("2")
+    REGULAR = 3, _("3")
+    BUENO = 4, _("4")
+    EXCELENTE = 5, _("5")
+
+class ValoracionUsuario(models.Model):
+    evaluador = models.ForeignKey('Usuario', on_delete=models.CASCADE, related_name='valoraciones_realizadas')
+    evaluado = models.ForeignKey('Usuario', on_delete=models.CASCADE, related_name='valoraciones_recibidas')
+    puntuacion = models.IntegerField(choices=ValoracionUsuarioChoices.choices, default=ValoracionUsuarioChoices.BUENO)
+    comentario = models.TextField(blank=True, null=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=~models.Q(evaluador=models.F('evaluado')), name='no_autovaloracion'),
+            models.UniqueConstraint(fields=['evaluador', 'evaluado'], name='una_valoracion_por_usuario'),
+        ]
+
+    def __str__(self):
+        return f'Valoracion {self.puntuacion} de {self.evaluador.email} a {self.evaluado.email}'
 
 class Usuario(AbstractUser):
     username = None
@@ -50,6 +72,13 @@ class Usuario(AbstractUser):
     habilidades = models.ManyToManyField(Habilidad, related_name="usuarios", blank=True)
     email = models.EmailField(_("email address"), unique=True)
     media = models.ImageField(upload_to='media/', blank=True, null=True)
+    valoraciones = models.ManyToManyField(
+        'self',
+        through='ValoracionUsuario',
+        symmetrical=False,
+        related_name='valorado_por',
+        blank=True,
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ["nombre", "apellido"]

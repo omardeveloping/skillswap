@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from .models import Usuario, Habilidad, TipoHabilidad
+from .models import Usuario, Habilidad, TipoHabilidad, ValoracionUsuario
 
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import UserDetailsSerializer
@@ -25,6 +25,21 @@ class TipoHabilidadSerializer(serializers.ModelSerializer):
     class Meta:
         model = TipoHabilidad
         fields = "__all__"
+
+class ValoracionUsuarioSerializer(serializers.ModelSerializer):
+    evaluador = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = ValoracionUsuario
+        fields = "__all__"
+        read_only_fields = ("evaluador",)
+
+    def validate(self, attrs):
+        evaluador = self.context["request"].user if "request" in self.context else None
+        evaluado = attrs.get("evaluado") or getattr(self.instance, "evaluado", None)
+        if evaluador and evaluado and evaluador == evaluado:
+            raise serializers.ValidationError(_("No puedes valorarte a ti mismo."))
+        return super().validate(attrs)
 
 
 class CustomRegisterSerializer(RegisterSerializer):
