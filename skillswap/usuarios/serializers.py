@@ -8,9 +8,14 @@ from dj_rest_auth.serializers import UserDetailsSerializer
 from dj_rest_auth.serializers import LoginSerializer
 
 class UsuarioSerializer(serializers.ModelSerializer):
+    whatsapp_link = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Usuario
         fields = "__all__"
+
+    def get_whatsapp_link(self, obj):
+        return obj.whatsapp_link
 
 class HabilidadSerializer(serializers.ModelSerializer):
     tipo = serializers.PrimaryKeyRelatedField(queryset=TipoHabilidad.objects.all())
@@ -49,6 +54,7 @@ class CustomRegisterSerializer(RegisterSerializer):
     nombre = serializers.CharField()
     segundo_nombre = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     apellido = serializers.CharField()
+    telefono = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def get_cleaned_data(self):
         data = super().get_cleaned_data()
@@ -56,6 +62,7 @@ class CustomRegisterSerializer(RegisterSerializer):
             "nombre": self.validated_data.get("nombre", ""),
             "segundo_nombre": self.validated_data.get("segundo_nombre", ""),
             "apellido": self.validated_data.get("apellido", ""),
+            "telefono": self.validated_data.get("telefono", ""),
         })
         return data
 
@@ -64,6 +71,7 @@ class CustomRegisterSerializer(RegisterSerializer):
         user.nombre = self.cleaned_data.get("nombre", "")
         user.segundo_nombre = self.cleaned_data.get("segundo_nombre", "")
         user.apellido = self.cleaned_data.get("apellido", "")
+        user.telefono = self.cleaned_data.get("telefono", "")
         user.save()
         return user
 
@@ -96,6 +104,8 @@ class CustomUserDetailsSerializer(UserDetailsSerializer):
             "year",
             "media",
             "habilidades",
+            "telefono",
+            "whatsapp_link",
         )
         extra_kwargs = {
             "email": {"read_only": True},  # no permitir editar email desde user endpoint

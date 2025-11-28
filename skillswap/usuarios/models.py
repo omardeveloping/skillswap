@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
+from django.core.validators import RegexValidator
 
 
 class TipoHabilidad(models.Model):
@@ -71,6 +72,13 @@ class Usuario(AbstractUser):
     year = models.IntegerField(blank=True, null=True)
     habilidades = models.ManyToManyField(Habilidad, related_name="usuarios", blank=True)
     email = models.EmailField(_("email address"), unique=True)
+    telefono = models.CharField(
+        max_length=16,
+        blank=True,
+        null=True,
+        validators=[RegexValidator(r"^\+?\d{9,15}$", message=_("Ingresa un número de teléfono válido."))],
+        help_text=_("Formato recomendado: +56912345678"),
+    )
     media = models.ImageField(upload_to='media/', blank=True, null=True)
     valoraciones = models.ManyToManyField(
         'self',
@@ -84,3 +92,10 @@ class Usuario(AbstractUser):
     REQUIRED_FIELDS = ["nombre", "apellido"]
 
     objects = UsuarioManager()
+
+    @property
+    def whatsapp_link(self):
+        if not self.telefono:
+            return None
+        numero = "".join(filter(str.isdigit, self.telefono))
+        return f"https://wa.me/{numero}" if numero else None
