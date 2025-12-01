@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Count
+from django.db.models import Count, Q
 from .models import Usuario, Habilidad, TipoHabilidad, ValoracionUsuario
 from .serializers import UsuarioSerializer, HabilidadSerializer, TipoHabilidadSerializer, ValoracionUsuarioSerializer
 
@@ -33,6 +33,32 @@ class UsuarioViewset(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(usuarios_compatibles, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated], url_path="buscar")
+    def buscar(self, request):
+        termino = request.query_params.get("q", "").strip()
+
+        if not termino:
+            return Response({"detail": "Proporciona un término de búsqueda en 'q'."}, status=400)
+
+        usuarios_filtrados = (
+            self.get_queryset()
+            .filter(
+                Q(nombre__icontains=termino)
+                | Q(segundo_nombre__icontains=termino)
+                | Q(apellido__icontains=termino)
+                | Q(habilidades__nombre_habilidad__icontains=termino)
+            )
+            .distinct()
+        )
+
+        pagina = self.paginate_queryset(usuarios_filtrados)
+        if pagina is not None:
+            serializer = self.get_serializer(pagina, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(usuarios_filtrados, many=True)
         return Response(serializer.data)
 
 class HabilidadViewset(viewsets.ModelViewSet):
