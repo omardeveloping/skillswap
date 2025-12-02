@@ -32,7 +32,7 @@ class TipoHabilidadSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ValoracionUsuarioSerializer(serializers.ModelSerializer):
-    evaluador = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    evaluador = UsuarioSerializer(source="evaluador", read_only=True)
 
     class Meta:
         model = ValoracionUsuario
