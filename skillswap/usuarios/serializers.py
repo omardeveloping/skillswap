@@ -9,6 +9,7 @@ from dj_rest_auth.serializers import LoginSerializer
 
 class UsuarioSerializer(serializers.ModelSerializer):
     whatsapp_link = serializers.SerializerMethodField(read_only=True)
+    valorado_por = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = Usuario
