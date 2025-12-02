@@ -32,12 +32,18 @@ class TipoHabilidadSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class ValoracionUsuarioSerializer(serializers.ModelSerializer):
-    evaluador = UsuarioSerializer(source="evaluador", read_only=True)
+    evaluador = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = ValoracionUsuario
         fields = "__all__"
         read_only_fields = ("evaluador",)
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            validated_data["evaluador"] = request.user
+        return super().create(validated_data)
 
     def validate(self, attrs):
         evaluador = self.context["request"].user if "request" in self.context else None
