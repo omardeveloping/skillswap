@@ -9,7 +9,16 @@ from .models import Usuario
 class CustomUserCreationForm(UserCreationForm):
     class Meta(UserCreationForm.Meta):
         model = Usuario
-        fields = ("email", "nombre", "segundo_nombre", "apellido", "year", "media")
+        fields = (
+            "email",
+            "nombre",
+            "segundo_nombre",
+            "apellido",
+            "year",
+            "media",
+            "habilidades_que_se_saben",
+            "habilidades_por_aprender",
+        )
 
 
 class CustomUserChangeForm(UserChangeForm):
@@ -22,6 +31,8 @@ class CustomUserChangeForm(UserChangeForm):
             "apellido",
             "year",
             "media",
+            "habilidades_que_se_saben",
+            "habilidades_por_aprender",
             "is_active",
             "is_staff",
             "is_superuser",
@@ -42,6 +53,7 @@ class UsuarioAdmin(UserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (_("Personal info"), {"fields": ("nombre", "segundo_nombre", "apellido", "year", "media")}),
+        (_("Habilidades"), {"fields": ("habilidades_que_se_saben", "habilidades_por_aprender")}),
         (_("Permissions"), {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
@@ -59,9 +71,12 @@ class UsuarioAdmin(UserAdmin):
                     "apellido",
                     "year",
                     "media",
+                    "habilidades_que_se_saben",
+                    "habilidades_por_aprender",
                     "is_staff",
                     "is_active",
                 ),
             },
         ),
     )
+    filter_horizontal = ("groups", "user_permissions", "habilidades_que_se_saben", "habilidades_por_aprender")

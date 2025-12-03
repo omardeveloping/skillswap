@@ -2,29 +2,53 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Count, Q
+from django.db.models import Count, Q, F
 from .models import Usuario, Habilidad, TipoHabilidad, ValoracionUsuario
-from .serializers import UsuarioSerializer, HabilidadSerializer, TipoHabilidadSerializer, ValoracionUsuarioSerializer
+from .serializers import (
+    UsuarioSerializer,
+    UsuarioCoincidenciaSerializer,
+    HabilidadSerializer,
+    TipoHabilidadSerializer,
+    ValoracionUsuarioSerializer,
+)
 
 # Create your views here.
 class UsuarioViewset(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
-    serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated]
+    serializer_class = UsuarioSerializer
+
+    def get_serializer_class(self):
+        if self.action == "coincidencias":
+            return UsuarioCoincidenciaSerializer
+        return super().get_serializer_class()
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def coincidencias(self, request):
         usuario = request.user
-        habilidades_usuario = list(usuario.habilidades.values_list("pk", flat=True))
+        habilidades_que_sabe = list(usuario.habilidades_que_se_saben.values_list("pk", flat=True))
+        habilidades_por_aprender = list(usuario.habilidades_por_aprender.values_list("pk", flat=True))
 
-        if not habilidades_usuario:
+        if not habilidades_que_sabe and not habilidades_por_aprender:
             return Response([])
 
         usuarios_compatibles = (
             Usuario.objects.exclude(pk=usuario.pk)
-            .filter(habilidades__in=habilidades_usuario)
-            .annotate(habilidades_compartidas=Count("habilidades", distinct=True))
-            .order_by("-habilidades_compartidas", "nombre")
+            .annotate(
+                puede_ensenar=Count(
+                    "habilidades_que_se_saben",
+                    filter=Q(habilidades_que_se_saben__in=habilidades_por_aprender),
+                    distinct=True,
+                ),
+                puede_aprender=Count(
+                    "habilidades_por_aprender",
+                    filter=Q(habilidades_por_aprender__in=habilidades_que_sabe),
+                    distinct=True,
+                ),
+            )
+            .filter(Q(puede_ensenar__gt=0) | Q(puede_aprender__gt=0))
+            .annotate(total_coincidencias=F("puede_ensenar") + F("puede_aprender"))
+            .order_by("-total_coincidencias", "-puede_ensenar", "-puede_aprender", "nombre")
         )
 
         pagina = self.paginate_queryset(usuarios_compatibles)
@@ -48,7 +72,8 @@ class UsuarioViewset(viewsets.ModelViewSet):
                 Q(nombre__icontains=termino)
                 | Q(segundo_nombre__icontains=termino)
                 | Q(apellido__icontains=termino)
-                | Q(habilidades__nombre_habilidad__icontains=termino)
+                | Q(habilidades_que_se_saben__nombre_habilidad__icontains=termino)
+                | Q(habilidades_por_aprender__nombre_habilidad__icontains=termino)
             )
             .distinct()
         )

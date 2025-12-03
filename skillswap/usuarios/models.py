@@ -70,7 +70,20 @@ class Usuario(AbstractUser):
     segundo_nombre = models.CharField(max_length=100, blank=True, null=True)
     apellido = models.CharField(max_length=100)
     year = models.IntegerField(blank=True, null=True)
-    habilidades = models.ManyToManyField(Habilidad, related_name="usuarios", blank=True)
+    habilidades_que_se_saben = models.ManyToManyField(
+        Habilidad,
+        related_name="usuarios_que_saben",
+        blank=True,
+        verbose_name=_("habilidades que se saben"),
+        help_text=_("Selecciona las habilidades que dominas."),
+    )
+    habilidades_por_aprender = models.ManyToManyField(
+        Habilidad,
+        related_name="usuarios_que_quieren_aprender",
+        blank=True,
+        verbose_name=_("habilidades que se quieren aprender"),
+        help_text=_("Selecciona las habilidades que quieres aprender."),
+    )
     email = models.EmailField(_("email address"), unique=True)
     telefono = models.CharField(
         max_length=16,

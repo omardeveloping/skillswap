@@ -110,10 +110,42 @@ class CustomUserDetailsSerializer(UserDetailsSerializer):
             "apellido",
             "year",
             "media",
-            "habilidades",
+            "habilidades_que_se_saben",
+            "habilidades_por_aprender",
             "telefono",
             "whatsapp_link",
         )
         extra_kwargs = {
             "email": {"read_only": True},  # no permitir editar email desde user endpoint
         }
+
+
+class UsuarioCoincidenciaSerializer(UsuarioSerializer):
+    puede_ensenar = serializers.SerializerMethodField()
+    puede_aprender = serializers.SerializerMethodField()
+
+    class Meta(UsuarioSerializer.Meta):
+        # Keep base fields; declared SerializerMethodFields are added automatically.
+        fields = UsuarioSerializer.Meta.fields
+
+    def _get_request_user(self):
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            return request.user
+        return None
+
+    def get_puede_ensenar(self, obj):
+        user = self._get_request_user()
+        if not user:
+            return []
+        habilidades_deseadas = user.habilidades_por_aprender.values_list("pk", flat=True)
+        habilidades = obj.habilidades_que_se_saben.filter(pk__in=habilidades_deseadas)
+        return HabilidadSerializer(habilidades, many=True).data
+
+    def get_puede_aprender(self, obj):
+        user = self._get_request_user()
+        if not user:
+            return []
+        habilidades_que_puedo_ensenar = user.habilidades_que_se_saben.values_list("pk", flat=True)
+        habilidades = obj.habilidades_por_aprender.filter(pk__in=habilidades_que_puedo_ensenar)
+        return HabilidadSerializer(habilidades, many=True).data
