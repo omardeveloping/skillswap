@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/', include('usuarios.urls')),
     path("api/auth/", include("dj_rest_auth.urls")),
     path("api/auth/registration/", include("dj_rest_auth.registration.urls")),
+    path("api/chat/", include("chat.urls")),
 
 ]
 if settings.DEBUG:  # solo para desarrollo

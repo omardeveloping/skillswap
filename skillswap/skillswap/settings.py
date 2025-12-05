@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "corsheaders",
     'core',
     'usuarios',
+    'chat',
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
