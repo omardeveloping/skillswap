@@ -1,7 +1,12 @@
+import asyncio
+import json
+
+from asgiref.sync import sync_to_async
+from django.http import Http404, HttpResponseForbidden, StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -86,3 +91,44 @@ class ConversacionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(nuevo_mensaje)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+async def mensajes_sse(request, pk):
+    """
+    Endpoint SSE para enviar nuevos mensajes de una conversación en tiempo (casi) real.
+    Usa polling en la base de datos dentro de un loop asíncrono y mantiene la conexión abierta.
+    """
+
+    try:
+        conversacion_obj = await sync_to_async(conversacion.objects.prefetch_related("participantes").get)(pk=pk)
+    except conversacion.DoesNotExist as exc:
+        raise Http404("Conversación no encontrada") from exc
+
+    es_participante = await sync_to_async(conversacion_obj.participantes.filter(pk=request.user.pk).exists)()
+    if not es_participante:
+        return HttpResponseForbidden("No participas en esta conversación.")
+
+    last_id_param = request.query_params.get("last_id", "0")
+    try:
+        last_id = int(last_id_param)
+    except ValueError:
+        last_id = 0
+
+    async def event_stream():
+        nonlocal last_id
+        while True:
+            nuevos = await sync_to_async(list)(
+                mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
+            )
+            if nuevos:
+                for msg in nuevos:
+                    last_id = msg.id
+                    payload = MensajeSerializer(msg).data
+                    yield f"data: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(2)
+
+    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    return response
