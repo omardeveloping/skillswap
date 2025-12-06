@@ -30,6 +30,7 @@ def crear_notificacion_solicitud_match(sender, instance, created, **kwargs):
         tipo=NotificacionTipo.SOLICITUD_MATCH,
         contexto=instance,
         usuario=instance.recipiente,
+        mostrar=True,
     )
 
 
@@ -54,4 +55,5 @@ def notificar_respuesta_solicitud_match(sender, instance, created, **kwargs):
         tipo=NotificacionTipo.SOLICITUD_MATCH,
         contexto=instance,
         usuario=instance.emisor,
+        mostrar=True,
     )
