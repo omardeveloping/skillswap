@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -44,9 +45,22 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         if isinstance(participantes_ids, str):
             participantes_ids = [pk for pk in participantes_ids.split(",") if pk]
 
+        if not participantes_ids:
+            raise ValidationError({"participantes": "Debes incluir al menos un participante para iniciar el chat."})
+
         participantes_qs = Usuario.objects.filter(pk__in=participantes_ids)
+        if participantes_qs.count() != len(participantes_ids):
+            raise ValidationError({"participantes": "Uno o más participantes no existen."})
+
+        usuario = self.request.user
+        for participante in participantes_qs:
+            if participante == usuario:
+                continue
+            if not usuario.matches.filter(pk=participante.pk).exists():
+                raise PermissionDenied("Solo puedes chatear con usuarios con los que tienes match.")
+
         nueva_conversacion = serializer.save()
-        nueva_conversacion.participantes.add(self.request.user, *participantes_qs)
+        nueva_conversacion.participantes.add(usuario, *participantes_qs)
         nueva_conversacion.save(update_fields=["fecha_actualizacion"])
 
     @action(detail=True, methods=["get"], url_path="mensajes")
@@ -80,6 +94,20 @@ class ConversacionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if not conversacion_obj.participantes.filter(pk=request.user.pk).exists():
+            return Response(
+                {"detail": "No participas en esta conversación."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        otros_participantes = conversacion_obj.participantes.exclude(pk=request.user.pk)
+        faltan_matches = otros_participantes.exclude(pk__in=request.user.matches.values_list("pk", flat=True))
+        if faltan_matches.exists():
+            return Response(
+                {"detail": "Solo puedes chatear con usuarios con los que tienes match."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         nuevo_mensaje = mensaje.objects.create(
             conversacion=conversacion_obj,
             remitente=request.user,
@@ -109,6 +137,14 @@ async def mensajes_sse(request, pk):
     es_participante = await sync_to_async(conversacion_obj.participantes.filter(pk=request.user.pk).exists)()
     if not es_participante:
         return HttpResponseForbidden("No participas en esta conversación.")
+
+    otros_participantes = await sync_to_async(list)(
+        conversacion_obj.participantes.exclude(pk=request.user.pk)
+    )
+    for participante in otros_participantes:
+        tiene_match = await sync_to_async(request.user.matches.filter(pk=participante.pk).exists)()
+        if not tiene_match:
+            return HttpResponseForbidden("Solo puedes chatear con usuarios con los que tienes match.")
 
     last_id_param = request.query_params.get("last_id", "0")
     try:

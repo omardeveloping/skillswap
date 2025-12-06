@@ -1,7 +1,15 @@
 from rest_framework import serializers
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from .models import Usuario, Habilidad, TipoHabilidad, ValoracionUsuario
+from .models import (
+    Usuario,
+    Habilidad,
+    TipoHabilidad,
+    ValoracionUsuario,
+    SolicitudMatch,
+    SolicitudMatchEstado,
+    Notificacion,
+)
 
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import UserDetailsSerializer
@@ -52,6 +60,55 @@ class ValoracionUsuarioSerializer(serializers.ModelSerializer):
         if evaluador and evaluado and evaluador == evaluado:
             raise serializers.ValidationError(_("No puedes valorarte a ti mismo."))
         return super().validate(attrs)
+
+
+class SolicitudMatchSerializer(serializers.ModelSerializer):
+    emisor = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = SolicitudMatch
+        fields = "__all__"
+        read_only_fields = ("emisor", "estado", "creado_en", "actualizado_en")
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        recipiente = attrs.get("recipiente") or getattr(self.instance, "recipiente", None)
+        if request and request.user and recipiente:
+            if request.user == recipiente:
+                raise serializers.ValidationError(_("No puedes enviarte una solicitud a ti mismo."))
+            if request.user.matches.filter(pk=recipiente.pk).exists():
+                raise serializers.ValidationError(_("Ya tienes un match con este usuario."))
+
+            existe_pendiente = SolicitudMatch.objects.filter(
+                emisor=request.user,
+                recipiente=recipiente,
+                estado=SolicitudMatchEstado.INDEFINIDO,
+            ).exists()
+            if existe_pendiente:
+                raise serializers.ValidationError(_("Ya enviaste una solicitud pendiente a este usuario."))
+
+            pendiente_contra = SolicitudMatch.objects.filter(
+                emisor=recipiente,
+                recipiente=request.user,
+                estado=SolicitudMatchEstado.INDEFINIDO,
+            ).exists()
+            if pendiente_contra:
+                raise serializers.ValidationError(_("Tienes una solicitud pendiente de este usuario; respóndela allí."))
+        return super().validate(attrs)
+
+
+class NotificacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notificacion
+        fields = "__all__"
+        read_only_fields = (
+            "titulo",
+            'descripcion',
+            "tipo",
+            "contexto",
+            "usuario",
+            "fecha",
+        )
 
 
 class CustomRegisterSerializer(RegisterSerializer):

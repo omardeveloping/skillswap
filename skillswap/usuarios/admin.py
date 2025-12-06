@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from django.utils.translation import gettext_lazy as _
 
-from .models import Usuario
+from .models import Usuario, SolicitudMatch, Notificacion
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -80,3 +80,17 @@ class UsuarioAdmin(UserAdmin):
         ),
     )
     filter_horizontal = ("groups", "user_permissions", "habilidades_que_se_saben", "habilidades_por_aprender")
+
+
+@admin.register(SolicitudMatch)
+class SolicitudMatchAdmin(admin.ModelAdmin):
+    list_display = ("emisor", "recipiente", "estado", "creado_en")
+    list_filter = ("estado",)
+    search_fields = ("emisor__email", "recipiente__email")
+
+
+@admin.register(Notificacion)
+class NotificacionAdmin(admin.ModelAdmin):
+    list_display = ("titulo", "usuario", "tipo", "mostrar", "leido", "fecha")
+    list_filter = ("tipo", "mostrar", "leido")
+    search_fields = ("titulo", "usuario__email")

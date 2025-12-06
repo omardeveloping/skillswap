@@ -1,15 +1,25 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Count, Q, F
-from .models import Usuario, Habilidad, TipoHabilidad, ValoracionUsuario
+from .models import (
+    Usuario,
+    Habilidad,
+    TipoHabilidad,
+    ValoracionUsuario,
+    SolicitudMatch,
+    Notificacion,
+)
 from .serializers import (
     UsuarioSerializer,
     UsuarioCoincidenciaSerializer,
     HabilidadSerializer,
     TipoHabilidadSerializer,
     ValoracionUsuarioSerializer,
+    SolicitudMatchSerializer,
+    NotificacionSerializer,
 )
 
 # Create your views here.
@@ -105,3 +115,45 @@ class ValoracionUsuarioViewset(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(evaluador=self.request.user)
+
+
+class SolicitudMatchViewset(viewsets.ModelViewSet):
+    serializer_class = SolicitudMatchSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_queryset(self):
+        user = self.request.user
+        return SolicitudMatch.objects.select_related("emisor", "recipiente").filter(Q(emisor=user) | Q(recipiente=user))
+
+    def perform_create(self, serializer):
+        serializer.save(emisor=self.request.user)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def aceptar(self, request, pk=None):
+        solicitud = self.get_object()
+        if solicitud.recipiente != request.user:
+            return Response({"detail": "Solo el destinatario puede aceptar la solicitud."}, status=status.HTTP_403_FORBIDDEN)
+
+        solicitud.aceptar()
+        serializer = self.get_serializer(solicitud)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def rechazar(self, request, pk=None):
+        solicitud = self.get_object()
+        if solicitud.recipiente != request.user:
+            return Response({"detail": "Solo el destinatario puede rechazar la solicitud."}, status=status.HTTP_403_FORBIDDEN)
+
+        solicitud.rechazar()
+        serializer = self.get_serializer(solicitud)
+        return Response(serializer.data)
+
+
+class NotificacionViewset(viewsets.ModelViewSet):
+    serializer_class = NotificacionSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return Notificacion.objects.select_related("contexto", "contexto__emisor", "contexto__recipiente").filter(usuario=self.request.user)

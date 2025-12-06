@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     "corsheaders",
     'core',
-    'usuarios',
+    'usuarios.apps.UsuariosConfig',
     'chat',
 ]
 REST_FRAMEWORK = {
