@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import time
@@ -12,7 +11,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import sync_to_async
 
 from usuarios.models import Usuario
 from .models import conversacion, mensaje
@@ -143,24 +142,24 @@ class ConversacionViewSet(viewsets.ModelViewSet):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @renderer_classes([EventStreamRenderer])
-async def mensajes_sse(request, pk):
+def mensajes_sse(request, pk):
     """
     Endpoint SSE para enviar nuevos mensajes de una conversación en tiempo (casi) real.
-    Usa polling en la base de datos dentro de un loop asíncrono y mantiene la conexión abierta.
+    Usa polling en la base de datos dentro de un loop síncrono y mantiene la conexión abierta.
     """
 
     try:
-        conversacion_obj = await sync_to_async(conversacion.objects.prefetch_related("participantes").get)(pk=pk)
+        conversacion_obj = conversacion.objects.prefetch_related("participantes").get(pk=pk)
     except conversacion.DoesNotExist as exc:
         raise Http404("Conversación no encontrada") from exc
 
-    es_participante = await sync_to_async(conversacion_obj.participantes.filter(pk=request.user.pk).exists)()
+    es_participante = conversacion_obj.participantes.filter(pk=request.user.pk).exists()
     if not es_participante:
         return HttpResponseForbidden("No participas en esta conversación.")
 
-    otros_participantes = await sync_to_async(list)(conversacion_obj.participantes.exclude(pk=request.user.pk))
+    otros_participantes = list(conversacion_obj.participantes.exclude(pk=request.user.pk))
     for participante in otros_participantes:
-        tiene_match = await sync_to_async(request.user.matches.filter(pk=participante.pk).exists)()
+        tiene_match = request.user.matches.filter(pk=participante.pk).exists()
         if not tiene_match:
             return HttpResponseForbidden("Solo puedes chatear con usuarios con los que tienes match.")
 
@@ -170,15 +169,13 @@ async def mensajes_sse(request, pk):
     except ValueError:
         last_id = 0
 
-    async def event_stream():
+    def event_stream():
         nonlocal last_id
         logger.debug("SSE stream opened for conversacion_id=%s by user_id=%s", pk, request.user.pk)
         # Primer ping para que el cliente reciba respuesta inmediata.
         yield b": stream-start\n\n"
         while True:
-            nuevos = await sync_to_async(list)(
-                mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
-            )
+            nuevos = mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
             for msg in nuevos:
                 last_id = msg.id
                 payload = MensajeSerializer(msg).data
@@ -187,18 +184,9 @@ async def mensajes_sse(request, pk):
             # Heartbeat para mantener viva la conexión y evitar timeouts/intermediarios.
             logger.debug("SSE heartbeat conversacion_id=%s to user_id=%s last_id=%s", pk, request.user.pk, last_id)
             yield f"event: ping\ndata: {int(time.time())}\n\n".encode("utf-8")
-            await asyncio.sleep(2)
+            time.sleep(2)
 
-    # Adapt the async generator to a sync iterator so StreamingHttpResponse can consume it under ASGI.
-    def sync_stream():
-        agen = event_stream()
-        try:
-            while True:
-                yield async_to_sync(agen.__anext__)()
-        except StopAsyncIteration:
-            return
-
-    response = StreamingHttpResponse(sync_stream(), content_type="text/event-stream; charset=utf-8")
+    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream; charset=utf-8")
     response["Cache-Control"] = "no-cache, no-transform"
     # Evita que Nginx u otros proxies hagan buffering del stream SSE.
     response["X-Accel-Buffering"] = "no"
