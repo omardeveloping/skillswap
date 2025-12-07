@@ -135,7 +135,8 @@ async def mensajes_sse(request, pk):
     except Token.DoesNotExist:
         return HttpResponseForbidden("Invalid token")
 
-    user = token.user
+    user = await sync_to_async(lambda: token.user)()
+
 
     # Load conversation
     try:
