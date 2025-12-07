@@ -1,6 +1,6 @@
 import json
 import logging
-import time
+import asyncio
 
 from django.http import Http404, HttpResponseForbidden, StreamingHttpResponse
 from django.utils import timezone
@@ -17,15 +17,13 @@ from usuarios.models import Usuario
 from .models import conversacion, mensaje
 from .serializers import ConversacionSerializer, MensajeSerializer
 
-
 logger = logging.getLogger(__name__)
 
 
+# ============================
+# Event Stream Renderer (DRF)
+# ============================
 class EventStreamRenderer(BaseRenderer):
-    """
-    Renderer para permitir content negotiation con 'text/event-stream' en DRF.
-    """
-
     media_type = "text/event-stream"
     format = "event-stream"
     charset = None
@@ -34,12 +32,10 @@ class EventStreamRenderer(BaseRenderer):
         return data
 
 
+# ============================
+# Conversacion ViewSet
+# ============================
 class ConversacionViewSet(viewsets.ModelViewSet):
-    """
-    Maneja las conversaciones del usuario autenticado y sus mensajes relacionados.
-    Incluye acciones para listar, ver mensajes y enviar mensajes en una conversación.
-    """
-
     serializer_class = ConversacionSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "post", "head", "options"]
@@ -58,7 +54,6 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def perform_create(self, serializer):
-        # Asegura que el creador siempre quede agregado a la conversación.
         participantes_ids = self.request.data.get("participantes", [])
         if isinstance(participantes_ids, str):
             participantes_ids = [pk for pk in participantes_ids.split(",") if pk]
@@ -81,6 +76,7 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         nueva_conversacion.participantes.add(usuario, *participantes_qs)
         nueva_conversacion.save(update_fields=["fecha_actualizacion"])
 
+    # Listar mensajes
     @action(detail=True, methods=["get"], url_path="mensajes")
     def mensajes(self, request, pk=None):
         conversacion_obj = self.get_object()
@@ -101,6 +97,7 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(mensajes_qs, many=True)
         return Response(serializer.data)
 
+    # Enviar mensaje
     @action(detail=True, methods=["post"], url_path="enviar")
     def enviar(self, request, pk=None):
         conversacion_obj = self.get_object()
@@ -113,18 +110,13 @@ class ConversacionViewSet(viewsets.ModelViewSet):
             )
 
         if not conversacion_obj.participantes.filter(pk=request.user.pk).exists():
-            return Response(
-                {"detail": "No participas en esta conversación."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            return Response({"detail": "No participas en esta conversación."}, status=status.HTTP_403_FORBIDDEN)
 
         otros_participantes = conversacion_obj.participantes.exclude(pk=request.user.pk)
         faltan_matches = otros_participantes.exclude(pk__in=request.user.matches.values_list("pk", flat=True))
         if faltan_matches.exists():
-            return Response(
-                {"detail": "Solo puedes chatear con usuarios con los que tienes match."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            return Response({"detail": "Solo puedes chatear con usuarios con los que tienes match."},
+                            status=status.HTTP_403_FORBIDDEN)
 
         nuevo_mensaje = mensaje.objects.create(
             conversacion=conversacion_obj,
@@ -139,56 +131,84 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+# ============================
+# ASGI-SAFE SSE ENDPOINT
+# ============================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 @renderer_classes([EventStreamRenderer])
-def mensajes_sse(request, pk):
+async def mensajes_sse(request, pk):
     """
-    Endpoint SSE para enviar nuevos mensajes de una conversación en tiempo (casi) real.
-    Usa polling en la base de datos dentro de un loop síncrono y mantiene la conexión abierta.
+    SSE async endpoint that works correctly on ASGI (uvicorn).
+    No blocking, no sync generators, no time.sleep(), no worker crashes.
     """
 
+    # Get conversation asynchronously
     try:
-        conversacion_obj = conversacion.objects.prefetch_related("participantes").get(pk=pk)
-    except conversacion.DoesNotExist as exc:
-        raise Http404("Conversación no encontrada") from exc
+        conversacion_obj = await sync_to_async(
+            conversacion.objects.prefetch_related("participantes").get
+        )(pk=pk)
+    except conversacion.DoesNotExist:
+        raise Http404("Conversación no encontrada")
 
-    es_participante = conversacion_obj.participantes.filter(pk=request.user.pk).exists()
+    # Validate participation
+    es_participante = await sync_to_async(
+        conversacion_obj.participantes.filter(pk=request.user.pk).exists
+    )()
     if not es_participante:
         return HttpResponseForbidden("No participas en esta conversación.")
 
-    otros_participantes = list(conversacion_obj.participantes.exclude(pk=request.user.pk))
+    # Validate match rules
+    otros_participantes = await sync_to_async(list)(
+        conversacion_obj.participantes.exclude(pk=request.user.pk)
+    )
     for participante in otros_participantes:
-        tiene_match = request.user.matches.filter(pk=participante.pk).exists()
+        tiene_match = await sync_to_async(
+            request.user.matches.filter(pk=participante.pk).exists
+        )()
         if not tiene_match:
             return HttpResponseForbidden("Solo puedes chatear con usuarios con los que tienes match.")
 
-    last_id_param = request.query_params.get("last_id", "0")
+    # Initialize last_id
     try:
-        last_id = int(last_id_param)
+        last_id = int(request.query_params.get("last_id", "0"))
     except ValueError:
         last_id = 0
 
-    def event_stream():
+    # ============================
+    # ASGI-compatible async generator
+    # ============================
+    async def event_stream():
         nonlocal last_id
-        logger.debug("SSE stream opened for conversacion_id=%s by user_id=%s", pk, request.user.pk)
-        # Primer ping para que el cliente reciba respuesta inmediata.
+
+        logger.debug("SSE stream opened for conversacion=%s user=%s", pk, request.user.pk)
+
+        # First ping
         yield b": stream-start\n\n"
+
         while True:
-            nuevos = mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
+            # Query new messages (async)
+            nuevos = await sync_to_async(
+                list
+            )(mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id"))
+
             for msg in nuevos:
                 last_id = msg.id
                 payload = MensajeSerializer(msg).data
-                logger.debug("SSE emit mensaje_id=%s conversacion_id=%s to user_id=%s", msg.id, pk, request.user.pk)
+                logger.debug("SSE emit msg=%s in conversacion=%s to user=%s", msg.id, pk, request.user.pk)
+
                 yield f"data: {json.dumps(payload)}\n\n".encode("utf-8")
-            # Heartbeat para mantener viva la conexión y evitar timeouts/intermediarios.
-            logger.debug("SSE heartbeat conversacion_id=%s to user_id=%s last_id=%s", pk, request.user.pk, last_id)
-            yield f"event: ping\ndata: {int(time.time())}\n\n".encode("utf-8")
-            time.sleep(2)
+
+            # Heartbeat
+            hb = f"event: ping\ndata: {int(asyncio.get_running_loop().time())}\n\n".encode("utf-8")
+            yield hb
+
+            # async sleep (never block!)
+            await asyncio.sleep(2)
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream; charset=utf-8")
     response["Cache-Control"] = "no-cache, no-transform"
-    # Evita que Nginx u otros proxies hagan buffering del stream SSE.
     response["X-Accel-Buffering"] = "no"
     response["Connection"] = "keep-alive"
+
     return response
