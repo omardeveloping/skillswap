@@ -139,27 +139,27 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-@api_view(["GET"])
+@api_view(["GET"], async=True)
 @permission_classes([IsAuthenticated])
 @renderer_classes([EventStreamRenderer])
-def mensajes_sse(request, pk):
+async def mensajes_sse(request, pk):
     """
     Endpoint SSE para enviar nuevos mensajes de una conversación en tiempo (casi) real.
-    Usa polling en la base de datos dentro de un loop síncrono y mantiene la conexión abierta.
+    Usa polling en la base de datos dentro de un loop asíncrono y mantiene la conexión abierta.
     """
 
     try:
-        conversacion_obj = conversacion.objects.prefetch_related("participantes").get(pk=pk)
+        conversacion_obj = await sync_to_async(conversacion.objects.prefetch_related("participantes").get)(pk=pk)
     except conversacion.DoesNotExist as exc:
         raise Http404("Conversación no encontrada") from exc
 
-    es_participante = conversacion_obj.participantes.filter(pk=request.user.pk).exists()
+    es_participante = await sync_to_async(conversacion_obj.participantes.filter(pk=request.user.pk).exists)()
     if not es_participante:
         return HttpResponseForbidden("No participas en esta conversación.")
 
-    otros_participantes = list(conversacion_obj.participantes.exclude(pk=request.user.pk))
+    otros_participantes = await sync_to_async(list)(conversacion_obj.participantes.exclude(pk=request.user.pk))
     for participante in otros_participantes:
-        tiene_match = request.user.matches.filter(pk=participante.pk).exists()
+        tiene_match = await sync_to_async(request.user.matches.filter(pk=participante.pk).exists)()
         if not tiene_match:
             return HttpResponseForbidden("Solo puedes chatear con usuarios con los que tienes match.")
 
@@ -169,13 +169,15 @@ def mensajes_sse(request, pk):
     except ValueError:
         last_id = 0
 
-    def event_stream():
+    async def event_stream():
         nonlocal last_id
         logger.debug("SSE stream opened for conversacion_id=%s by user_id=%s", pk, request.user.pk)
         # Primer ping para que el cliente reciba respuesta inmediata.
         yield b": stream-start\n\n"
         while True:
-            nuevos = mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
+            nuevos = await sync_to_async(list)(
+                mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
+            )
             for msg in nuevos:
                 last_id = msg.id
                 payload = MensajeSerializer(msg).data
@@ -184,7 +186,7 @@ def mensajes_sse(request, pk):
             # Heartbeat para mantener viva la conexión y evitar timeouts/intermediarios.
             logger.debug("SSE heartbeat conversacion_id=%s to user_id=%s last_id=%s", pk, request.user.pk, last_id)
             yield f"event: ping\ndata: {int(time.time())}\n\n".encode("utf-8")
-            time.sleep(2)
+            await asyncio.sleep(2)
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream; charset=utf-8")
     response["Cache-Control"] = "no-cache, no-transform"
