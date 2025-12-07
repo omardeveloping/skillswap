@@ -8,7 +8,9 @@ from django.utils.dateparse import parse_datetime
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -126,8 +128,9 @@ class ConversacionViewSet(viewsets.ModelViewSet):
 # ========================================
 #  ASGI-COMPATIBLE SSE ENDPOINT (NO DRF)
 # ========================================
-@csrf_exempt
-@login_required
+@api_view(["GET"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 async def mensajes_sse(request, pk):
     """
     Async SSE endpoint for Uvicorn. Works reliably:
