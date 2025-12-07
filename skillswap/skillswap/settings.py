@@ -90,11 +90,19 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = []
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://172.25.192.1:5173",
+]
 CSRF_TRUSTED_ORIGINS = [
     "https://api.omarmontanares.com",
     "https://api.omarmontanares.com:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://172.25.192.1:5173",
 ]
 
 ROOT_URLCONF = 'skillswap.urls'
