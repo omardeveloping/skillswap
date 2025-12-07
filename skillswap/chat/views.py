@@ -172,21 +172,22 @@ def mensajes_sse(request, pk):
         nonlocal last_id
         logger.debug("SSE stream opened for conversacion_id=%s by user_id=%s", pk, request.user.pk)
         # Primer ping para que el cliente reciba respuesta inmediata.
-        yield ": stream-start\n\n"
+        yield b": stream-start\n\n"
         while True:
             nuevos = mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
             for msg in nuevos:
                 last_id = msg.id
                 payload = MensajeSerializer(msg).data
                 logger.debug("SSE emit mensaje_id=%s conversacion_id=%s to user_id=%s", msg.id, pk, request.user.pk)
-                yield f"data: {json.dumps(payload)}\n\n"
+                yield f"data: {json.dumps(payload)}\n\n".encode("utf-8")
             # Heartbeat para mantener viva la conexión y evitar timeouts/intermediarios.
             logger.debug("SSE heartbeat conversacion_id=%s to user_id=%s last_id=%s", pk, request.user.pk, last_id)
-            yield "event: ping\ndata: {}\n\n"
+            yield f"event: ping\ndata: {int(time.time())}\n\n".encode("utf-8")
             time.sleep(2)
 
-    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
-    response["Cache-Control"] = "no-cache"
+    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream; charset=utf-8")
+    response["Cache-Control"] = "no-cache, no-transform"
     # Evita que Nginx u otros proxies hagan buffering del stream SSE.
     response["X-Accel-Buffering"] = "no"
+    response["Connection"] = "keep-alive"
     return response
