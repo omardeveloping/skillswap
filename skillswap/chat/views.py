@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 from django.http import Http404, HttpResponseForbidden, StreamingHttpResponse
@@ -14,6 +15,9 @@ from rest_framework.response import Response
 from usuarios.models import Usuario
 from .models import conversacion, mensaje
 from .serializers import ConversacionSerializer, MensajeSerializer
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventStreamRenderer(BaseRenderer):
@@ -166,14 +170,23 @@ def mensajes_sse(request, pk):
 
     def event_stream():
         nonlocal last_id
+        logger.debug("SSE stream opened for conversacion_id=%s by user_id=%s", pk, request.user.pk)
+        # Primer ping para que el cliente reciba respuesta inmediata.
+        yield ": stream-start\n\n"
         while True:
             nuevos = mensaje.objects.filter(conversacion_id=pk, id__gt=last_id).order_by("id")
             for msg in nuevos:
                 last_id = msg.id
                 payload = MensajeSerializer(msg).data
+                logger.debug("SSE emit mensaje_id=%s conversacion_id=%s to user_id=%s", msg.id, pk, request.user.pk)
                 yield f"data: {json.dumps(payload)}\n\n"
+            # Heartbeat para mantener viva la conexión y evitar timeouts/intermediarios.
+            logger.debug("SSE heartbeat conversacion_id=%s to user_id=%s last_id=%s", pk, request.user.pk, last_id)
+            yield "event: ping\ndata: {}\n\n"
             time.sleep(2)
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
+    # Evita que Nginx u otros proxies hagan buffering del stream SSE.
+    response["X-Accel-Buffering"] = "no"
     return response
