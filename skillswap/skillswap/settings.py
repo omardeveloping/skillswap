@@ -96,6 +96,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://172.25.192.1:5173",
+    "https://julio-vv.github.io",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "https://api.omarmontanares.com",
@@ -103,6 +104,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://172.25.192.1:5173",
+    "https://julio-vv.github.io",
 ]
 
 ROOT_URLCONF = 'skillswap.urls'
