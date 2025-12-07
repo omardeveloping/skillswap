@@ -12,7 +12,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
-from asgiref.sync import sync_to_async
+from asgiref.sync import async_to_sync, sync_to_async
 
 from usuarios.models import Usuario
 from .models import conversacion, mensaje
@@ -189,7 +189,16 @@ async def mensajes_sse(request, pk):
             yield f"event: ping\ndata: {int(time.time())}\n\n".encode("utf-8")
             await asyncio.sleep(2)
 
-    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream; charset=utf-8")
+    # Adapt the async generator to a sync iterator so StreamingHttpResponse can consume it under ASGI.
+    def sync_stream():
+        agen = event_stream()
+        try:
+            while True:
+                yield async_to_sync(agen.__anext__)()
+        except StopAsyncIteration:
+            return
+
+    response = StreamingHttpResponse(sync_stream(), content_type="text/event-stream; charset=utf-8")
     response["Cache-Control"] = "no-cache, no-transform"
     # Evita que Nginx u otros proxies hagan buffering del stream SSE.
     response["X-Accel-Buffering"] = "no"
