@@ -7,6 +7,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -124,6 +126,7 @@ class ConversacionViewSet(viewsets.ModelViewSet):
 # ========================================
 #  ASGI-COMPATIBLE SSE ENDPOINT (NO DRF)
 # ========================================
+@csrf_exempt
 @login_required
 async def mensajes_sse(request, pk):
     """
