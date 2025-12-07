@@ -5,14 +5,28 @@ from django.http import Http404, HttpResponseForbidden, StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import BaseRenderer
 from rest_framework.response import Response
 
 from usuarios.models import Usuario
 from .models import conversacion, mensaje
 from .serializers import ConversacionSerializer, MensajeSerializer
+
+
+class EventStreamRenderer(BaseRenderer):
+    """
+    Renderer para permitir content negotiation con 'text/event-stream' en DRF.
+    """
+
+    media_type = "text/event-stream"
+    format = "event-stream"
+    charset = None
+
+    def render(self, data, media_type=None, renderer_context=None):
+        return data
 
 
 class ConversacionViewSet(viewsets.ModelViewSet):
@@ -122,6 +136,7 @@ class ConversacionViewSet(viewsets.ModelViewSet):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+@renderer_classes([EventStreamRenderer])
 def mensajes_sse(request, pk):
     """
     Endpoint SSE para enviar nuevos mensajes de una conversación en tiempo (casi) real.
