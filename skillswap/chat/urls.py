@@ -6,6 +6,6 @@ from .views import ConversacionViewSet, mensajes_sse
 router = DefaultRouter()
 router.register(r"conversaciones", ConversacionViewSet, basename="conversacion")
 
-urlpatterns = [
+urlpatterns = router.urls + [
     path("conversaciones/<int:pk>/stream/", mensajes_sse, name="conversacion-stream"),
-] + router.urls
+]
