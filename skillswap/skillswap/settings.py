@@ -78,6 +78,7 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 SITE_ID = 1
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -85,8 +86,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
     'allauth.account.middleware.AccountMiddleware',
 ]
 
@@ -97,6 +96,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://172.25.192.1:5173",
     "https://julio-vv.github.io",
+    "https://omarmontanares.com",
+    "https://www.omarmontanares.com",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "https://api.omarmontanares.com",
@@ -105,6 +106,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://172.25.192.1:5173",
     "https://julio-vv.github.io",
+    "https://omarmontanares.com",
+    "https://www.omarmontanares.com",
 ]
 
 ROOT_URLCONF = 'skillswap.urls'
