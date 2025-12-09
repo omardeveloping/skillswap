@@ -22,9 +22,6 @@ from .serializers import ConversacionSerializer, MensajeSerializer
 logger = logging.getLogger(__name__)
 
 
-# ============================
-# DRF Conversación ViewSet
-# ============================
 class ConversacionViewSet(viewsets.ModelViewSet):
     serializer_class = ConversacionSerializer
     permission_classes = [IsAuthenticated]
@@ -113,9 +110,6 @@ class ConversacionViewSet(viewsets.ModelViewSet):
         return Response(MensajeSerializer(nuevo).data, status=status.HTTP_201_CREATED)
 
 
-# ======================================
-# PURE DJANGO ASGI SSE ENDPOINT (NO DRF)
-# ======================================
 async def mensajes_sse(request, pk):
     """
     SSE streaming endpoint.
@@ -123,7 +117,6 @@ async def mensajes_sse(request, pk):
     Compatible with Uvicorn and Nginx.
     """
 
-    # Authenticate manually
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Token "):
         return HttpResponseForbidden("Token missing")
@@ -138,7 +131,6 @@ async def mensajes_sse(request, pk):
     user = await sync_to_async(lambda: token.user)()
 
 
-    # Load conversation
     try:
         conv = await sync_to_async(
             conversacion.objects.prefetch_related("participantes").get
@@ -146,14 +138,12 @@ async def mensajes_sse(request, pk):
     except conversacion.DoesNotExist:
         raise Http404("Conversación no encontrada")
 
-    # Check membership
     is_participant = await sync_to_async(
         conv.participantes.filter(pk=user.pk).exists
     )()
     if not is_participant:
         return HttpResponseForbidden("No participas en esta conversación.")
 
-    # Check match rules
     otros = await sync_to_async(list)(conv.participantes.exclude(pk=user.pk))
     for p in otros:
         has_match = await sync_to_async(
@@ -162,13 +152,11 @@ async def mensajes_sse(request, pk):
         if not has_match:
             return HttpResponseForbidden("Solo chateas con usuarios con match.")
 
-    # Last message ID
     try:
         last_id = int(request.GET.get("last_id", 0))
     except:
         last_id = 0
 
-    # Async generator
     async def stream():
         nonlocal last_id
         yield b": stream-start\n\n"
