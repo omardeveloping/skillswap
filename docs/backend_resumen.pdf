@@ -1,0 +1,211 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Length 3622 >>
+stream
+BT
+/F1 12 Tf
+14 TL
+72 760 Td
+T*
+T*
+(Este documento resume la estructura y los flujos principales del backend de SkillSwap para que) Tj
+T*
+(nuevos contribuidores puedan entender rápidamente cómo funciona la API.) Tj
+T*
+T*
+T*
+(PILA TECNOLÓGICA Y CONFIGURACIÓN BASE) Tj
+T*
+(• **Framework**: Django 5.2.8 con Django REST Framework para exponer APIs.) Tj
+T*
+(• **Autenticación**: Tokens \(DRF\) y sesiones. Se usa `dj-rest-auth` + `django-allauth` para) Tj
+T*
+(registro e inicio de sesión, con un modelo de usuario personalizado que usa el email como) Tj
+T*
+(identificador.) Tj
+T*
+(• **Internacionalización**: Configuración regional `es-cl` y zona horaria `America/Santiago`.) Tj
+T*
+(• **CORS/CSRF**: Permite orígenes específicos \(localhost:5173, dominios de producción\) y) Tj
+T*
+(habilita credenciales.) Tj
+T*
+(• **Archivos estáticos y media**: MEDIA_ROOT apunta a `media/` y se sirven en desarrollo con) Tj
+T*
+(`DEBUG=True`.) Tj
+T*
+T*
+T*
+(APPS Y RESPONSABILIDADES) Tj
+T*
+(• **core**: `healthcheck` simple en la raíz \(`/`\) para verificaciones de disponibilidad.) Tj
+T*
+(• **usuarios**: Gestión de personas, habilidades, coincidencias \(match\), valoraciones y) Tj
+T*
+(notificaciones.) Tj
+T*
+(• **chat**: Conversaciones y mensajes entre usuarios que ya hicieron match, con streaming SSE.) Tj
+T*
+T*
+T*
+(MODELOS CLAVE) Tj
+T*
+(• **Usuario** \(`usuarios.models.Usuario`\): Extiende `AbstractUser` eliminando username; campos) Tj
+T*
+(de nombre, segundo nombre, apellido, email único, teléfono validado, imagen de perfil y enlaces) Tj
+T*
+(de WhatsApp generados. Mantiene relaciones ManyToMany con habilidades que sabe y quiere) Tj
+T*
+(aprender, además de matches entre usuarios.) Tj
+T*
+(• **Habilidad / TipoHabilidad**: Catálogo de habilidades agrupadas por tipo.) Tj
+T*
+(• **ValoracionUsuario**: Relaciona evaluador y evaluado, con puntuación de 1-5, comentario) Tj
+T*
+(opcional y restricciones para evitar auto-valoraciones y duplicados.) Tj
+T*
+(• **SolicitudMatch**: Solicitudes de conexión entre usuarios con estados `indefinido`,) Tj
+T*
+(`aceptado` o `rechazado`, controlando que no se envíen a uno mismo. Aceptar agrega el match y) Tj
+T*
+(oculta notificaciones relacionadas.) Tj
+T*
+(• **Notificacion**: Guarda eventos \(por ahora `solicitud_match`\) con flags de lectura y) Tj
+T*
+(visibilidad, ordenados del más reciente al más antiguo.) Tj
+T*
+(• **Conversacion** \(chat\): Agrupa participantes y actualiza `fecha_actualizacion` al enviar) Tj
+T*
+(mensajes.) Tj
+T*
+(• **Mensaje** \(chat\): Contenido, remitente, marca de lectura y timestamp por conversación.) Tj
+T*
+T*
+T*
+(ENDPOINTS PRINCIPALES) Tj
+T*
+(• **Autenticación** \(`/api/auth/` y `/api/auth/registration/`\): Manejado por `dj-rest-auth`;) Tj
+T*
+(usa serializadores personalizados para login/registro con email.) Tj
+T*
+(• **Usuarios** \(`/api/usuarios/`\): CRUD completo. Acciones adicionales:) Tj
+T*
+(- `coincidencias/`: devuelve usuarios compatibles según habilidades que sabe/quiere aprender el) Tj
+T*
+(solicitante, paginado.) Tj
+T*
+(- `buscar/?q=...`: filtro por nombre/apellidos o nombres de habilidades.) Tj
+T*
+(• **Habilidades y tipos**: `/api/habilidades/` y `/api/tipos-habilidad/` con CRUD protegido.) Tj
+T*
+(• **Valoraciones**: `/api/valoraciones/` permite crear/consultar valoraciones; el evaluador se) Tj
+T*
+(fija al usuario autenticado.) Tj
+T*
+(• **Solicitudes de match**: `/api/solicitudes-match/` \(GET/POST/DELETE\) y acciones `aceptar/` y) Tj
+T*
+(`rechazar/` para el destinatario.) Tj
+T*
+(• **Notificaciones**: `/api/notificaciones/` listado filtrado por usuario actual y) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 1791 >>
+stream
+BT
+/F1 12 Tf
+14 TL
+72 760 Td
+(actualizaciones parciales \(ej. marcar leído/mostrar\).) Tj
+T*
+(• **Chat** \(`/api/chat/conversaciones/`\):) Tj
+T*
+(- Listado/creación de conversaciones solo con participantes que ya tienen match.) Tj
+T*
+(- `mensajes/`: lista mensajes, acepta filtro `?since=` en ISO para obtener solo los nuevos.) Tj
+T*
+(- `enviar/`: crea mensajes dentro de una conversación donde el usuario participa y mantiene) Tj
+T*
+(match.) Tj
+T*
+(- `conversaciones/<id>/stream/`: endpoint SSE \(autenticación por Token\) que emite mensajes en) Tj
+T*
+(tiempo real.) Tj
+T*
+(• **Healthcheck**: `/` responde `{ "status": "ok" }`.) Tj
+T*
+T*
+T*
+(FLUJOS RECOMENDADOS) Tj
+T*
+(1. Registrar usuario vía `/api/auth/registration/` y completar perfil \(habilidades que sabe y) Tj
+T*
+(desea aprender\).) Tj
+T*
+(2. Buscar coincidencias o usuarios por nombre/habilidad; enviar `solicitudes-match` a quienes) Tj
+T*
+(interesen.) Tj
+T*
+(3. Cuando el destinatario acepta, ambos quedan en `matches` y pueden abrir una conversación de) Tj
+T*
+(chat.) Tj
+T*
+(4. Enviar y recibir mensajes; el cliente puede suscribirse por SSE para actualizaciones en) Tj
+T*
+(vivo.) Tj
+T*
+(5. Tras colaborar, crear `valoraciones` para retroalimentación entre usuarios.) Tj
+T*
+T*
+T*
+(ARCHIVOS DE REFERENCIA) Tj
+T*
+(• Configuración y seguridad: `skillswap/skillswap/settings.py`.) Tj
+T*
+(• Modelos y serializers: app `usuarios` y `chat` \(modelos, serializers y vistas en el mismo) Tj
+T*
+(directorio\).) Tj
+T*
+(• Rutas API: `skillswap/skillswap/urls.py`, `usuarios/urls.py`, `chat/urls.py`, `core/urls.py`.) Tj
+T*
+T*
+T*
+(GENERACIÓN DEL PDF) Tj
+T*
+(Ejecuta `python docs/generar_pdf_resumen.py` para producir `docs/backend_resumen.pdf` a partir) Tj
+T*
+(de este resumen \(no necesita dependencias externas\).) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000003864 00000 n 
+0000003990 00000 n 
+0000005832 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+5958
+%%EOF
